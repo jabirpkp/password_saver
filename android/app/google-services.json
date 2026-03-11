@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "761651723020",
+    "project_id": "stasaver-44ee1",
+    "storage_bucket": "stasaver-44ee1.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:761651723020:android:fbd63b092574fc35b0a729",
+        "android_client_info": {
+          "package_name": "com.example.password_saver"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCQ2LajnpDLY_Jq_hwKveCOpVOYGoJA5rk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
