@@ -1,32 +1,38 @@
-
-import 'package:hive/hive.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LocalStorage {
+  static SharedPreferences? _prefs;
 
-
-  static final _prefs = Hive.box("app_storage");
-
-
-  static Future<void> setInt(String key, int value) async {
-    await _prefs.put(key, value);
+  static Future<void> initialize() async {
+    _prefs ??= await SharedPreferences.getInstance();
   }
 
-  static Future<void> setString(String key, String value) async {
-    await _prefs.put(key, value);
+  static SharedPreferences get _storage {
+    final storage = _prefs;
+    if (storage == null) {
+      throw StateError('LocalStorage.initialize() must be called first.');
+    }
+    return storage;
   }
+
+  static Future<bool> setInt(String key, int value) =>
+      _storage.setInt(key, value);
+
+  static Future<bool> setString(String key, String value) =>
+      _storage.setString(key, value);
 
   static int? getInt(String key) {
-    return _prefs.get(key);
-  }
-  static String? getString(String key) {
-    return _prefs.get(key);
+    return _storage.getInt(key);
   }
 
-  static Future<void> setDouble(String key, double value) async {
-    await _prefs.put(key, value);
+  static String? getString(String key) {
+    return _storage.getString(key);
   }
+
+  static Future<bool> setDouble(String key, double value) =>
+      _storage.setDouble(key, value);
 
   static double? getDouble(String key) {
-    return _prefs.get(key);
+    return _storage.getDouble(key);
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:password_saver/repository/appSettings.dart';
 import 'package:password_saver/view/key_input_screen.dart';
@@ -7,8 +8,10 @@ import 'package:password_saver/view/password_listing.dart';
 import '../repository/local_storage.dart';
 
 class DarkBiometricLoginScreen extends StatefulWidget {
+  const DarkBiometricLoginScreen({super.key});
+
   @override
-  _DarkBiometricLoginScreenState createState() =>
+  State<DarkBiometricLoginScreen> createState() =>
       _DarkBiometricLoginScreenState();
 }
 
@@ -16,6 +19,8 @@ class _DarkBiometricLoginScreenState extends State<DarkBiometricLoginScreen>
     with SingleTickerProviderStateMixin {
   final LocalAuthentication auth = LocalAuthentication();
   bool isAuthenticated = false;
+  bool _isAuthenticating = false;
+  String? _errorMessage;
 
   late AnimationController _controller;
   late Animation<double> _pulseAnimation;
@@ -30,46 +35,76 @@ class _DarkBiometricLoginScreenState extends State<DarkBiometricLoginScreen>
       duration: Duration(seconds: 1),
     )..repeat(reverse: true);
 
-    _pulseAnimation = Tween<double>(begin: 1.0, end: 1.2).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
+    _pulseAnimation = Tween<double>(
+      begin: 1.0,
+      end: 1.2,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
 
-    // Trigger biometric authentication on screen load
-  //  Future.delayed(Duration(milliseconds: 300), authenticate);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (kDebugMode) {
+        _continueAfterAuthentication();
+      } else {
+        authenticate();
+      }
+    });
   }
 
   Future<void> authenticate() async {
-    try {
-      bool authenticated = await auth.authenticate(
-        localizedReason: 'Scan your fingerprint or face to login',
-        biometricOnly: true,
-      );
+    if (_isAuthenticating) return;
+    setState(() {
+      _isAuthenticating = true;
+      _errorMessage = null;
+    });
 
-      if (authenticated) {
-        var iv = LocalStorage.getString('security_iv');
-        var key = LocalStorage.getString('security_key');
-        if(iv!=null&&iv.toString().isNotEmpty&&key!=null&&key.toString().isNotEmpty) {
-          AppSettings.securityIv = iv;
-          AppSettings.securityKey = key;
-          Navigator.pushAndRemoveUntil(
-            context,
-            MaterialPageRoute(builder: (context) => BeautifulList()),
-                (Route<dynamic> route) => false, // Remove all previous screens
-          );
-        }else{
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => KeyInputScreen()),
-            // Remove all previous screens
+    try {
+      final canAuthenticate =
+          await auth.canCheckBiometrics || await auth.isDeviceSupported();
+      if (!canAuthenticate) {
+        if (mounted) {
+          setState(
+            () => _errorMessage =
+                'Biometric authentication is not available on this device.',
           );
         }
-
+        return;
       }
-    } catch (e) {
 
-
-      print(e);
+      final authenticated = await auth.authenticate(
+        localizedReason: 'Authenticate to unlock your password vault',
+        biometricOnly: true,
+      );
+      if (authenticated) await _continueAfterAuthentication();
+    } catch (_) {
+      if (mounted) {
+        setState(
+          () => _errorMessage =
+              'Authentication was not completed. Please try again.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isAuthenticating = false);
     }
+  }
+
+  Future<void> _continueAfterAuthentication() async {
+    final iv = LocalStorage.getString('security_iv')?.trim();
+    final key = LocalStorage.getString('security_key')?.trim();
+    final hasSavedCredentials =
+        iv != null && iv.isNotEmpty && key != null && key.isNotEmpty;
+
+    if (hasSavedCredentials) {
+      AppSettings.securityIv = iv;
+      AppSettings.securityKey = key;
+    }
+
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(
+        builder: (_) =>
+            hasSavedCredentials ? BeautifulList() : KeyInputScreen(),
+      ),
+      (_) => false,
+    );
   }
 
   @override
@@ -90,8 +125,8 @@ class _DarkBiometricLoginScreenState extends State<DarkBiometricLoginScreen>
             children: [
               // Pulsating fingerprint icon
 
-              Text(
-                "Welcome Back _Sta",
+              const Text(
+                "Welcome back",
                 style: TextStyle(
                   color: Colors.tealAccent,
                   fontSize: 28,
@@ -99,13 +134,10 @@ class _DarkBiometricLoginScreenState extends State<DarkBiometricLoginScreen>
                 ),
               ),
               SizedBox(height: 12),
-              Text(
-                "Use your fingerprint ",
+              const Text(
+                "Authenticate to unlock your secure vault",
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: 16,
-                ),
+                style: TextStyle(color: Colors.white70, fontSize: 16),
               ),
               SizedBox(height: 32),
               GestureDetector(
@@ -118,29 +150,39 @@ class _DarkBiometricLoginScreenState extends State<DarkBiometricLoginScreen>
                       color: Colors.white10,
                     ),
                     padding: EdgeInsets.all(24),
-                    child: Icon(
-                      Icons.fingerprint,
-                      size: 80,
-                      color: Colors.tealAccent,
-                    ),
+                    child: _isAuthenticating
+                        ? const SizedBox(
+                            width: 80,
+                            height: 80,
+                            child: Padding(
+                              padding: EdgeInsets.all(20),
+                              child: CircularProgressIndicator(
+                                color: Colors.tealAccent,
+                              ),
+                            ),
+                          )
+                        : const Icon(
+                            Icons.fingerprint,
+                            size: 80,
+                            color: Colors.tealAccent,
+                          ),
                   ),
                 ),
               ),
-              SizedBox(height: 32),
-              GestureDetector(
-                onTap: (){
-                  Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => KeyInputScreen()));
-                },
-                child: Align(alignment: Alignment.topRight,
-                child: Text("ChangeKey",style: TextStyle(
-                  color: Colors.blue,
-                  fontWeight: FontWeight.bold
-                ),)),
-              )
-
-
+              const SizedBox(height: 28),
+              if (_errorMessage != null) ...[
+                Text(
+                  _errorMessage!,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.redAccent),
+                ),
+                const SizedBox(height: 16),
+              ],
+              TextButton.icon(
+                onPressed: _isAuthenticating ? null : authenticate,
+                icon: const Icon(Icons.lock_open_rounded),
+                label: const Text('Unlock vault'),
+              ),
             ],
           ),
         ),
